@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "User": {
+      "title": "用户",
+      "description": "系统管理员账号信息",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "登录账号" },
+        "password": { "type": "string", "description": "MD5加密后的密码" },
+        "role": { "type": "string", "description": "用户角色，如 admin" },
+        "nickname": { "type": "string", "description": "用户昵称" }
+      },
+      "required": ["username", "password"]
+    },
+    "Project": {
+      "title": "项目",
+      "description": "园林景观项目核心信息",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string", "description": "关联的客户ID" },
+        "name": { "type": "string", "description": "项目名称" },
+        "client": { "type": "string", "description": "客户单位名称 (冗余存储)" },
+        "clientRole": { "type": "string", "description": "客户角色 (冗余存储)" },
+        "startDate": { "type": "string", "format": "date", "description": "项目开始日期" },
+        "endDate": { "type": "string", "format": "date", "description": "项目结束日期" },
+        "staffCount": { "type": "number", "description": "投入人员数量" },
+        "totalAmount": { "type": "number", "description": "项目总订单金额" },
+        "description": { "type": "string", "description": "项目详细描述" },
+        "statusCode": { "type": "string", "description": "项目状态标识 (对应系统配置中的 PROJECT_STATUS)" },
+        "statusLabel": { "type": "string", "description": "项目状态名称 (冗余显示)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "创建时间" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "最后更新时间" }
+      },
+      "required": ["name", "clientId", "totalAmount", "statusCode"]
+    },
+    "Client": {
+      "title": "客户",
+      "description": "客户管理信息",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "客户名称" },
+        "role": { "type": "string", "description": "客户角色 (冗余显示)" },
+        "roleCode": { "type": "string", "description": "客户角色标识 (对应系统配置中的 CLIENT_ROLE)" },
+        "source": { "type": "string", "description": "客户来源" },
+        "paymentCycle": { "type": "string", "description": "回款周期" },
+        "description": { "type": "string", "description": "客户描述" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "创建时间" }
+      },
+      "required": ["name", "roleCode"]
+    },
+    "SystemConfig": {
+      "title": "系统通用配置",
+      "description": "统一管理下拉选项配置（角色、状态、类目等）",
+      "type": "object",
+      "properties": {
+        "group": { "type": "string", "description": "配置分组 (如：CLIENT_ROLE, PROJECT_STATUS, COST_CATEGORY)" },
+        "label": { "type": "string", "description": "显示名称 (如：项目经理)" },
+        "value": { "type": "string", "description": "唯一标识/代码 (如：pm)" },
+        "sortOrder": { "type": "number", "description": "排序权重" },
+        "isActive": { "type": "boolean", "description": "是否启用" },
+        "description": { "type": "string", "description": "备注说明" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "创建时间" }
+      },
+      "required": ["group", "label", "value"]
+    },
+    "Cost": {
+      "title": "成本项",
+      "description": "项目的具体成本支出明细",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string", "description": "关联的项目ID" },
+        "categoryCode": { "type": "string", "description": "成本类目标识 (对应系统配置中的 COST_CATEGORY)" },
+        "categoryLabel": { "type": "string", "description": "成本类目名称 (冗余显示)" },
+        "supplier": { "type": "string", "description": "供应商名称" },
+        "amount": { "type": "number", "description": "支出金额" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "记录时间" }
+      },
+      "required": ["projectId", "categoryCode", "amount"]
+    },
+    "Voucher": {
+      "title": "凭证",
+      "description": "项目相关的单据或图片凭证",
+      "type": "object",
+      "properties": {
+        "projectId": { "type": "string", "description": "关联的项目ID" },
+        "url": { "type": "string", "description": "凭证图片在云存储中的URL" },
+        "name": { "type": "string", "description": "凭证名称或描述" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "上传时间" }
+      },
+      "required": ["projectId", "url"]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": { "$ref": "User" },
+      "description": "管理员集合"
+    },
+    "projects": {
+      "schema": { "$ref": "Project" },
+      "description": "项目信息集合"
+    },
+    "clients": {
+      "schema": { "$ref": "Client" },
+      "description": "客户信息集合"
+    },
+    "system_configs": {
+      "schema": { "$ref": "SystemConfig" },
+      "description": "系统通用配置集合"
+    },
+    "costs": {
+      "schema": { "$ref": "Cost" },
+      "description": "成本明细集合"
+    },
+    "vouchers": {
+      "schema": { "$ref": "Voucher" },
+      "description": "项目凭证集合"
+    }
+  }
+}
