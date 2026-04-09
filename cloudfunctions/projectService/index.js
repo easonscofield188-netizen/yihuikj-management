@@ -30,6 +30,10 @@ exports.main = async (event, context) => {
         return await createProject(data);
       case 'list':
         return await listProjects(data);
+      case 'update':
+        return await updateProject(data);
+      case 'delete':
+        return await deleteProject(data);
       default:
         return { code: 400, message: '未知操作' };
     }
@@ -46,11 +50,84 @@ const isSafeInput = (str) => {
   return !unsafePattern.test(str);
 };
 
+async function deleteProject(params) {
+  const { id } = params;
+  if (!id) {
+    return { code: 400, message: '缺少项目 ID' };
+  }
+
+  try {
+    await db.collection('projects').doc(id).remove();
+    return { code: 0, message: '删除成功' };
+  } catch (err) {
+    console.error('删除项目失败:', err);
+    return { code: 500, message: '删除失败', error: err.message };
+  }
+}
+
+async function updateProject(params) {
+  const { id, name, period, client, role, staffCount, amount, desc, costs, status, isHistorical, constructionPeriod, collectionPeriod } = params;
+
+  if (!id) {
+    return { code: 400, message: '缺少项目 ID' };
+  }
+
+  // 安全校验
+  if (!isSafeInput(name) || !isSafeInput(client) || !isSafeInput(desc)) {
+    return { code: 400, message: '输入包含非法字符' };
+  }
+
+  try {
+    const projectDoc = await db.collection('projects').doc(id).get();
+    if (!projectDoc.data) {
+      return { code: 404, message: '项目不存在' };
+    }
+    const oldProject = projectDoc.data;
+
+    const updateData = {
+      updateTime: db.serverDate()
+    };
+
+    if (name) updateData.name = name;
+    if (period) updateData.period = period;
+    if (client) updateData.client = client;
+    if (role) updateData.role = role;
+    if (staffCount !== undefined) updateData.staffCount = staffCount;
+    if (amount !== undefined) updateData.amount = amount;
+    if (desc !== undefined) updateData.desc = desc;
+    if (costs) updateData.costs = costs;
+    if (status) updateData.status = status;
+    
+    // 历史数据相关字段
+    if (isHistorical !== undefined) updateData.isHistorical = isHistorical;
+    if (constructionPeriod) updateData.constructionPeriod = constructionPeriod;
+    if (collectionPeriod) updateData.collectionPeriod = collectionPeriod;
+
+    // 状态变更时间节点记录
+    if (status && status !== oldProject.status) {
+      const now = new Date().toISOString();
+      if (status === 'negotiating') updateData.negotiatingTime = now;
+      if (status === 'constructing') updateData.constructingTime = now;
+      if (status === 'completed') updateData.completedTime = now;
+      if (status === 'closed') updateData.settledTime = now;
+    }
+
+    await db.collection('projects').doc(id).update({
+      data: updateData
+    });
+
+    return { code: 0, message: '更新成功' };
+  } catch (err) {
+    console.error('更新项目失败:', err);
+    return { code: 500, message: '更新失败', error: err.message };
+  }
+}
+
 async function createProject(params) {
-  const { name, period, client, role, staffCount, amount, desc, costs } = params;
+  const { name, period, client, role, staffCount, amount, desc, costs, status, isHistorical, constructionPeriod, collectionPeriod } = params;
 
   // 1. 基础完整性校验
-  if (!name || !period || !client || !role || staffCount === undefined || !amount || !desc || !costs) {
+  if (!name || !client || !role || staffCount === undefined || !amount || !desc || !costs) {
     return { code: 400, message: '缺少必需的项目信息，请确保所有字段均已填写' };
   }
 
@@ -65,12 +142,22 @@ async function createProject(params) {
   }
 
   try {
+    const now = new Date().toISOString();
+    const data = {
+      ...params,
+      createTime: db.serverDate(),
+      updateTime: db.serverDate()
+    };
+
+    // 初始化时间节点
+    const initialStatus = status || 'negotiating';
+    if (initialStatus === 'negotiating') data.negotiatingTime = now;
+    if (initialStatus === 'constructing') data.constructingTime = now;
+    if (initialStatus === 'completed') data.completedTime = now;
+    if (initialStatus === 'closed') data.settledTime = now;
+
     const res = await db.collection('projects').add({
-      data: {
-        ...params,
-        createTime: db.serverDate(),
-        updateTime: db.serverDate()
-      }
+      data
     });
     return { code: 0, message: '创建成功', data: { id: res._id } };
   } catch (err) {

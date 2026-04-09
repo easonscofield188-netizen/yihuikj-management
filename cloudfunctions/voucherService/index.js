@@ -229,6 +229,10 @@ exports.main = async (event, context) => {
         return await uploadImage(event);
       case 'updateBatch':
         return await updateVouchersProject(data);
+      case 'renameProjectVouchers':
+        return await renameProjectVouchers(data);
+      case 'deleteByProject':
+        return await deleteVouchersByProject(data);
       default:
         // 处理未知操作
         return {
@@ -356,6 +360,150 @@ async function updateVouchersProject(params) {
   } catch (err) {
     console.error('批量更新凭证失败:', err);
     return { code: 500, message: '更新失败', error: err.message };
+  }
+}
+
+/**
+ * 当项目名称修改时，同步修改云存储中的路径（通过重新上传实现）
+ */
+async function renameProjectVouchers(params) {
+  const { projectId, oldName, newName } = params;
+  
+  if (!projectId || !oldName || !newName || oldName === newName) {
+    return { code: 0, message: '无需重命名' };
+  }
+
+  console.log(`开始重命名项目凭证路径: ${oldName} -> ${newName}`);
+
+  try {
+    // 1. 获取该项目的所有凭证
+    const vouchersRes = await db.collection('project_vouchers')
+      .where({ projectId })
+      .get();
+    
+    const vouchers = vouchersRes.data;
+    if (!vouchers || vouchers.length === 0) {
+      return { code: 0, message: '该项目暂无凭证，无需处理' };
+    }
+
+    console.log(`找到 ${vouchers.length} 个凭证需要处理`);
+
+    const processVoucher = async (voucher) => {
+      const oldFileId = voucher.fileId;
+      const oldPathPart = `/bill_voucher/${oldName}/`;
+      
+      if (!oldFileId.includes(oldPathPart)) {
+        console.log(`凭证 ${voucher._id} 路径不匹配，跳过`);
+        return { id: voucher._id, success: true, skipped: true };
+      }
+
+      try {
+        const newPathPart = `/bill_voucher/${newName}/`;
+        const newFileId = oldFileId.replace(oldPathPart, newPathPart);
+        
+        const pathStartIndex = newFileId.indexOf('/', 9);
+        const cloudPath = newFileId.substring(pathStartIndex + 1);
+        
+        console.log(`处理凭证 ${voucher._id}: ${oldFileId} -> ${cloudPath}`);
+
+        // 1. 下载原文件
+        const downloadRes = await cloud.downloadFile({
+          fileID: oldFileId
+        });
+
+        // 2. 上传到新路径
+        const uploadRes = await cloud.uploadFile({
+          cloudPath: cloudPath,
+          fileContent: downloadRes.fileContent
+        });
+
+        // 3. 获取新链接
+        const getUrlRes = await cloud.getTempFileURL({
+          fileList: [uploadRes.fileID]
+        });
+        const newUrl = getUrlRes.fileList[0].tempFileURL;
+
+        // 4. 更新数据库记录
+        await db.collection('project_vouchers').doc(voucher._id).update({
+          data: {
+            fileId: uploadRes.fileID,
+            fileUrl: newUrl,
+            updateTime: db.serverDate()
+          }
+        });
+
+        // 5. 删除旧文件
+        await cloud.deleteFile({
+          fileList: [oldFileId]
+        });
+
+        return { id: voucher._id, success: true };
+      } catch (itemError) {
+        console.error(`处理凭证 ${voucher._id} 失败:`, itemError);
+        return { id: voucher._id, success: false, error: itemError.message };
+      }
+    };
+
+    // 并行处理所有凭证
+    const results = await Promise.all(vouchers.map(v => processVoucher(v)));
+
+    return { 
+      code: 0, 
+      message: '处理完成', 
+      data: { 
+        total: vouchers.length, 
+        processed: results.length,
+        successCount: results.filter(r => r.success).length
+      } 
+    };
+  } catch (err) {
+    console.error('重命名项目凭证失败:', err);
+    return { code: 500, message: '处理失败', error: err.message };
+  }
+}
+
+/**
+ * 删除项目关联的所有凭证（数据库记录和云存储文件）
+ */
+async function deleteVouchersByProject(params) {
+  const { projectId } = params;
+  if (!projectId) {
+    return { code: 400, message: '缺少项目 ID' };
+  }
+
+  try {
+    // 1. 获取该项目的所有凭证
+    const vouchersRes = await db.collection('project_vouchers')
+      .where({ projectId })
+      .get();
+    
+    const vouchers = vouchersRes.data;
+    if (!vouchers || vouchers.length === 0) {
+      return { code: 0, message: '该项目无凭证' };
+    }
+
+    // 2. 提取所有 fileId
+    const fileIds = vouchers.map(v => v.fileId).filter(id => !!id);
+
+    // 3. 批量删除云存储文件
+    if (fileIds.length > 0) {
+      await cloud.deleteFile({
+        fileList: fileIds
+      });
+    }
+
+    // 4. 批量删除数据库记录
+    const _ = db.command;
+    await db.collection('project_vouchers')
+      .where({
+        projectId: projectId
+      })
+      .remove();
+
+    return { code: 0, message: '项目凭证删除成功', count: vouchers.length };
+  } catch (err) {
+    console.error('删除项目凭证失败:', err);
+    return { code: 500, message: '删除凭证失败', error: err.message };
   }
 }
 
