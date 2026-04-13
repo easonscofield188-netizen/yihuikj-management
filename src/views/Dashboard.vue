@@ -1273,10 +1273,11 @@
                       <h4 class="text-xs font-bold text-on-surface-variant uppercase tracking-widest flex items-center gap-2">
                         单据凭证列表 (支持 JPG, PNG, WEBP 格式，支持多选)
                       </h4>
-                      <button 
-                        :disabled="isViewMode || uploadingVoucher || isFieldReadOnly('vouchers')"
-                        class="flex items-center gap-2 text-xs font-bold text-primary hover:underline disabled:opacity-50"
-                        @click="triggerUpload"
+                      <label 
+                        v-if="!isViewMode && !isFieldReadOnly('vouchers')"
+                        for="voucher-file-input"
+                        class="flex items-center gap-2 text-xs font-bold text-primary hover:underline cursor-pointer"
+                        :class="{ 'opacity-50 pointer-events-none': uploadingVoucher }"
                       >
                         <el-icon v-if="!uploadingVoucher">
                           <Upload />
@@ -1288,11 +1289,12 @@
                           <Refresh />
                         </el-icon>
                         <span>{{ uploadingVoucher ? '正在上传...' : '上传凭证' }}</span>
-                      </button>
+                      </label>
                     </div>
                   
                     <!-- 隐藏的文件输入框 -->
                     <input 
+                      id="voucher-file-input"
                       ref="fileInputRef"
                       type="file" 
                       multiple 
@@ -1315,7 +1317,22 @@
                           referrerPolicy="no-referrer"
                         >
                         <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity gap-2">
-                          <div class="flex gap-3">
+                          <div
+                            v-if="v.deleting"
+                            class="flex flex-col items-center gap-2 text-primary"
+                          >
+                            <el-icon
+                              class="animate-spin"
+                              size="24"
+                            >
+                              <Refresh />
+                            </el-icon>
+                            <span class="text-[10px]">正在删除...</span>
+                          </div>
+                          <div
+                            v-else
+                            class="flex gap-3"
+                          >
                             <el-icon
                               class="text-white hover:text-primary transition-colors"
                               size="20"
@@ -1336,11 +1353,11 @@
                       </div>
 
                       <!-- Upload Placeholder -->
-                      <button 
-                        v-if="vouchers.length < 20"
-                        :disabled="isViewMode || uploadingVoucher || isFieldReadOnly('vouchers')"
-                        class="aspect-square rounded-lg border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all bg-surface-container-lowest/50 group disabled:opacity-30 disabled:cursor-not-allowed"
-                        @click="triggerUpload"
+                      <label 
+                        v-if="vouchers.length < 20 && !isViewMode && !isFieldReadOnly('vouchers')"
+                        for="voucher-file-input"
+                        class="aspect-square rounded-lg border-2 border-dashed border-white/10 flex flex-col items-center justify-center gap-2 text-on-surface-variant hover:border-primary/50 hover:text-primary transition-all bg-surface-container-lowest/50 group cursor-pointer"
+                        :class="{ 'opacity-30 pointer-events-none': uploadingVoucher }"
                       >
                         <el-icon
                           v-if="!uploadingVoucher"
@@ -1360,7 +1377,7 @@
                           <span class="text-[10px] font-bold">{{ uploadingVoucher ? '上传中' : '继续添加' }}</span>
                           <span class="text-[8px] opacity-40">{{ vouchers.length }}/20</span>
                         </div>
-                      </button>
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -1394,10 +1411,10 @@
                   class="px-6 md:px-8 pb-8"
                 >
                   <!-- Upload Area -->
-                  <div 
+                  <label 
                     v-if="!isViewMode && !isFieldReadOnly('isHasContract')"
+                    for="contract-file-input"
                     class="w-full p-10 upload-dashed-border rounded-xl bg-surface-container-lowest flex flex-col items-center justify-center gap-5 hover:bg-primary/5 transition-all cursor-pointer group mb-6"
-                    @click="triggerContractUpload"
                   >
                     <div class="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                       <el-icon
@@ -1422,9 +1439,10 @@
                         支持 JPG, PNG, PDF 格式，请上传清晰的扫描件或照片
                       </p>
                     </div>
-                  </div>
+                  </label>
 
                   <input 
+                    id="contract-file-input"
                     ref="contractInputRef"
                     type="file" 
                     multiple 
@@ -1460,7 +1478,22 @@
                         referrerPolicy="no-referrer"
                       >
                       <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity gap-2">
-                        <div class="flex gap-3">
+                        <div
+                          v-if="c.deleting"
+                          class="flex flex-col items-center gap-2 text-primary"
+                        >
+                          <el-icon
+                            class="animate-spin"
+                            size="24"
+                          >
+                            <Refresh />
+                          </el-icon>
+                          <span class="text-[10px]">正在删除...</span>
+                        </div>
+                        <div
+                          v-else
+                          class="flex gap-3"
+                        >
                           <el-icon
                             class="text-white hover:text-primary transition-colors"
                             size="20"
@@ -1511,10 +1544,10 @@
                   class="px-6 md:px-8 pb-8"
                 >
                   <!-- Upload Area -->
-                  <div 
+                  <label 
                     v-if="!isViewMode && !isFieldReadOnly('isHasPreview')"
+                    for="preview-file-input"
                     class="w-full p-10 upload-dashed-border rounded-xl bg-surface-container-lowest flex flex-col items-center justify-center gap-5 hover:bg-primary/5 transition-all cursor-pointer group mb-6"
-                    @click="triggerPreviewUpload"
                   >
                     <div class="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                       <el-icon
@@ -1539,9 +1572,10 @@
                         支持 JPG, PNG 格式，最多上传 4 张图片
                       </p>
                     </div>
-                  </div>
+                  </label>
 
                   <input 
+                    id="preview-file-input"
                     ref="previewInputRef"
                     type="file" 
                     multiple 
@@ -1563,7 +1597,22 @@
                         referrerPolicy="no-referrer"
                       >
                       <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity gap-2">
-                        <div class="flex gap-3">
+                        <div
+                          v-if="p.deleting"
+                          class="flex flex-col items-center gap-2 text-primary"
+                        >
+                          <el-icon
+                            class="animate-spin"
+                            size="24"
+                          >
+                            <Refresh />
+                          </el-icon>
+                          <span class="text-[10px]">正在删除...</span>
+                        </div>
+                        <div
+                          v-else
+                          class="flex gap-3"
+                        >
                           <el-icon
                             class="text-white hover:text-primary transition-colors"
                             size="20"
@@ -2719,27 +2768,15 @@ const previewInputRef = ref(null)
 // 图片预览状态
 const previewVisible = ref(false)
 const initialIndex = ref(0)
-const previewList = computed(() => vouchers.value.map(v => v.url))
+const previewList = ref([])
 
 /**
  * 处理图片预览
  */
 const handlePreview = (index) => {
+  previewList.value = vouchers.value.map(v => v.url)
   initialIndex.value = index
   previewVisible.value = true
-}
-
-/**
- * 触发文件选择
- */
-const triggerUpload = () => {
-  if (vouchers.value.length >= 20) {
-    import('element-plus').then(({ ElMessage }) => {
-      ElMessage.warning('最多只能上传 20 张凭证')
-    })
-    return
-  }
-  fileInputRef.value?.click()
 }
 
 /**
@@ -4015,6 +4052,7 @@ const handlePreviewUpload = async (event) => {
  */
 const removeContract = async (index) => {
   const item = contracts.value[index]
+  item.deleting = true
   try {
     await deleteContract({ id: item.id, fileId: item.fileId })
     contracts.value.splice(index, 1)
@@ -4023,6 +4061,7 @@ const removeContract = async (index) => {
     })
   } catch (err) {
     console.error('删除合同失败:', err)
+    item.deleting = false
   }
 }
 
@@ -4031,6 +4070,7 @@ const removeContract = async (index) => {
  */
 const removePreview = async (index) => {
   const item = previews.value[index]
+  item.deleting = true
   try {
     await deletePreview({ id: item.id, fileId: item.fileId })
     previews.value.splice(index, 1)
@@ -4039,6 +4079,7 @@ const removePreview = async (index) => {
     })
   } catch (err) {
     console.error('删除预览图失败:', err)
+    item.deleting = false
   }
 }
 
@@ -4218,6 +4259,7 @@ const removeVoucher = async (index) => {
   const voucher = vouchers.value[index]
   if (!voucher) return
 
+  voucher.deleting = true
   try {
     // 调用整合后的云函数进行删除（包含数据库记录和云存储文件）
     await deleteVoucher({
@@ -4232,6 +4274,7 @@ const removeVoucher = async (index) => {
     })
   } catch (error) {
     console.error('删除凭证失败:', error.message || error)
+    voucher.deleting = false
     import('element-plus').then(({ ElMessage }) => {
       ElMessage.error('删除失败，请稍后再试')
     })
