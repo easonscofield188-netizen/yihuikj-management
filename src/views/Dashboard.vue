@@ -477,7 +477,7 @@
                           v-for="item in getRowProjectStatuses(row)"
                           :key="item.value"
                           :command="item.value"
-                          :disabled="item.sortOrder < getStatusOrder(row.status)"
+                          :disabled="!canRollbackStatus(row) && item.sortOrder < getStatusOrder(row.status)"
                           :class="{ 'is-selected': row.status === item.value }"
                         >
                           <span>{{ item.label }}</span>
@@ -729,7 +729,7 @@
                       placeholder="请选择项目状态" 
                       class="w-full custom-select" 
                       popper-class="custom-dropdown"
-                      :disabled="isViewMode || isFieldReadOnly('status')"
+                      :disabled="isViewMode || isFieldReadOnly('status') || (isCreating && form.type === 'long_term')"
                       @change="handleFormStatusChange"
                     >
                       <el-option 
@@ -737,7 +737,7 @@
                         :key="item.value" 
                         :label="item.label" 
                         :value="item.value" 
-                        :disabled="isEditMode && item.sortOrder < getStatusOrder(originalProjectStatus)"
+                        :disabled="isEditMode && !canRollbackStatus(form) && item.sortOrder < getStatusOrder(originalProjectStatus)"
                       />
                     </el-select>
                   </div>
@@ -1104,7 +1104,7 @@
 
                 <!-- Payable Amount -->
                 <div class="space-y-2">
-                  <label class="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1">应付账款 (¥)</label>
+                  <label class="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1">应付总账款 (¥)</label>
                   <div class="!bg-[#0e0e0f] px-4 h-[48px] flex items-center rounded-lg !shadow-[inset_0_0_0_1px_rgba(60,74,62,0.3)] text-sm font-mono text-on-surface cursor-not-allowed">
                     {{ Number(payableAmount).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
                   </div>
@@ -1112,7 +1112,7 @@
 
                 <!-- Paid Amount -->
                 <div class="space-y-2">
-                  <label class="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1">已付账款 (¥)</label>
+                  <label class="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1">已付总账款 (¥)</label>
                   <div class="!bg-[#0e0e0f] px-4 h-[48px] flex items-center rounded-lg !shadow-[inset_0_0_0_1px_rgba(60,74,62,0.3)] text-sm font-mono text-success/80 cursor-not-allowed">
                     {{ Number(paidAmount).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
                   </div>
@@ -1120,7 +1120,7 @@
 
                 <!-- Unpaid Amount -->
                 <div class="space-y-2">
-                  <label class="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1">未付账款 (¥)</label>
+                  <label class="text-xs font-bold text-on-surface-variant uppercase tracking-widest px-1">未付总账款 (¥)</label>
                   <div class="!bg-[#0e0e0f] px-4 h-[48px] flex items-center rounded-lg !shadow-[inset_0_0_0_1px_rgba(60,74,62,0.3)] text-sm font-mono text-red-400/80 cursor-not-allowed">
                     {{ Number(unpaidAmount).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}
                   </div>
@@ -1747,6 +1747,7 @@
                             format="YYYY-MM-DD"
                             value-format="YYYY-MM-DD"
                             :disabled="isViewMode || isLongTermTerminated"
+                            :disabled-date="disabledFutureDate"
                           />
                         </div>
                         <div class="space-y-2">
@@ -2362,6 +2363,9 @@ const getStatusOrder = (statusValue) => {
   const status = projectStatuses.value.find(s => s.value === statusValue)
   return status ? status.sortOrder : 0
 }
+
+// 仅长期项目允许状态回溯，其他项目类型不允许
+const canRollbackStatus = (project) => project?.type === 'long_term'
 
 // 获取原始项目状态（用于编辑模式下的状态回溯保护）
 const originalProjectStatus = computed(() => {
@@ -3169,12 +3173,11 @@ const isProjectClosed = computed(() => {
   return false;
 });
 
-// 计算属性：长期项目是否已终止
+// 计算属性：根据项目状态判断字段是否只读
 const isLongTermTerminated = computed(() => {
   return form.type === 'long_term' && form.status === 'terminated';
 });
 
-// 计算属性：根据项目状态判断字段是否只读
 const isFieldReadOnly = (fieldName) => {
   if (form.type === 'long_term') {
     // 长期项目创建成功后，项目类型、项目周期和订单金额禁止编辑
@@ -3326,7 +3329,7 @@ const handleInlineStatusChange = async (row, newVal) => {
   const oldOrder = getStatusOrder(row.status)
   const newOrder = getStatusOrder(newVal)
   
-  if (newOrder < oldOrder) {
+  if (!canRollbackStatus(row) && newOrder < oldOrder) {
     import('element-plus').then(({ ElMessage }) => {
       ElMessage.warning('项目状态无法回退')
     })
@@ -3397,6 +3400,14 @@ const handleInlineStatusChange = async (row, newVal) => {
         // 更新状态以供回溯校验
         row.status = newVal
 
+        if (row.type === 'long_term' && row.period && row.period[0]) {
+          row.period = [row.period[0], new Date().toISOString()]
+          const days = calculateDiffDays(row.period[0], row.period[1])
+          row.projectDaysText = days ? `${days}天` : '-'
+          const formatDate = (d) => d ? new Date(d).toLocaleDateString() : '-'
+          row.projectRangeText = `${formatDate(row.period[0])} - ${formatDate(row.period[1])}`
+        }
+
         // 活跃项目特殊逻辑：当状态改为“已交付”或“已结清”时，更新时间节点并重新计算周期
         if (!row.isHistorical) {
           const now = new Date().toISOString()
@@ -3456,6 +3467,8 @@ const handleInlineStatusChange = async (row, newVal) => {
           form.status = newVal
           if (row.isHistorical) {
             form.collectionPeriod = row.collectionPeriod
+          } else if (row.type === 'long_term' && row.period) {
+            form.period = [...row.period]
           } else {
             // 活跃项目同步更新表单中的周期显示
             const now = today.value.toISOString()
@@ -3479,6 +3492,11 @@ const handleInlineStatusChange = async (row, newVal) => {
       // 失败时回滚本地状态
       loadProjects()
     }
+  }
+
+  if (canRollbackStatus(row)) {
+    performUpdate()
+    return
   }
 
   import('element-plus').then(({ ElMessageBox }) => {
@@ -3505,7 +3523,7 @@ const handleInlineStatusChange = async (row, newVal) => {
 const handleFormStatusChange = (newVal) => {
   if (isEditMode.value && originalProjectStatus.value && newVal !== originalProjectStatus.value) {
     // 长期项目支持状态回溯切换，不需要确认弹窗
-    if (form.type === 'long_term') {
+    if (canRollbackStatus(form)) {
       return;
     }
 
@@ -3635,7 +3653,9 @@ const handleViewProject = async (project) => {
   Object.assign(form, {
     name: project.name,
     type: project.type || (project.isHistorical ? 'historical' : 'normal'),
-    period: project.isHistorical ? (project.period || [null, null]) : [pStart, project.settledTime || now],
+    period: project.type === 'long_term'
+      ? (project.period || [pStart, now])
+      : (project.isHistorical ? (project.period || [null, null]) : [pStart, project.settledTime || now]),
     startDate: pStart ? new Date(pStart).toISOString().split('T')[0] : null,
     constructionPeriod: project.isHistorical ? (project.constructionPeriod || [null, null]) : (project.constructingTime ? [project.constructingTime, project.completedTime || now] : [null, null]),
     collectionPeriod: project.isHistorical ? (project.collectionPeriod || [null, null]) : (project.settlingTime ? [project.settlingTime, project.settledTime || now] : [null, null]),
@@ -3904,8 +3924,10 @@ const loadProjects = async () => {
         } else {
           // 活跃项目根据时间节点计算
           const now = today.value.toISOString();
-          const pStart = p.negotiatingTime || (p.period && p.period[0]) || p.createTime;
-          const pEnd = p.settledTime || now;
+          const pStart = (p.type === 'long_term' ? (p.period && p.period[0]) : null) || p.negotiatingTime || (p.period && p.period[0]) || p.createTime;
+          const pEnd = p.type === 'long_term'
+            ? ((p.period && p.period[1]) || now)
+            : (p.settledTime || now);
           pDays = calculateDiffDays(pStart, pEnd);
           pRange = `${formatDate(pStart)} - ${formatDate(pEnd)}`;
 
@@ -4114,6 +4136,7 @@ const validateProjectForm = (checkVouchers = true) => {
     // 新建项目模式：校验开始日期
     if (isCreating.value) {
       if (!form.startDate) return '请选择项目开始日期';
+      if (new Date(form.startDate) > new Date()) return '项目开始日期不能晚于当前日期';
     } else {
       // 历史模式或编辑模式：校验项目周期
       if (!form.period || !form.period[0] || !form.period[1]) return '请选择项目周期';
@@ -4145,6 +4168,7 @@ const validateProjectForm = (checkVouchers = true) => {
       const sp = form.subProjects[i];
       if (!sp.content) return `子项目 ${i + 1} 请选择项目内容`;
       if (!sp.startDate) return `子项目 ${i + 1} 请选择开始日期`;
+      if (new Date(sp.startDate) > new Date()) return `子项目 ${i + 1} 开始日期不能晚于当前日期`;
       if (sp.amount === null || sp.amount === undefined) return `子项目 ${i + 1} 请输入订单金额`;
       
       if (checkVouchers && sp.isHasVoucher === '是') {
@@ -4339,7 +4363,11 @@ const handleSaveProject = async () => {
         delete projectData.constructionPeriod;
         delete projectData.collectionPeriod;
       } else {
-        projectData.period = (form.period && form.period[0] && form.period[1]) ? [new Date(form.period[0]).toISOString(), new Date(form.period[1]).toISOString()] : [];
+        if (form.type === 'long_term') {
+          delete projectData.period;
+        } else {
+          projectData.period = (form.period && form.period[0] && form.period[1]) ? [new Date(form.period[0]).toISOString(), new Date(form.period[1]).toISOString()] : [];
+        }
         
         if (form.isHistorical) {
           projectData.constructionPeriod = (form.constructionPeriod && form.constructionPeriod[0] && form.constructionPeriod[1]) ? [new Date(form.constructionPeriod[0]).toISOString(), new Date(form.constructionPeriod[1]).toISOString()] : [];
